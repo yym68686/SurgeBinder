@@ -148,9 +148,6 @@ const ProxiesString = keys.join(', ');
 
 // console.log(keys);
 
-// US = select, usauto,US 02|广东|中转|倍率x1, US 03|四川|中转|倍率x1, US 04|广东|中转|倍率x1, US 05|武汉|中转|倍率x1
-// usauto = url-test, US 01|江苏|中转|倍率x1, US 02|广东|中转|倍率x1, US 03|四川|中转|倍率x1, US 04|广东|中转|倍率x1, US 05|武汉|中转|倍率x1, url=http://www.gstatic.com/generate_204, interval=43200
-
 let [ProxyGroupString, autoGroupString, fallbackGroupString] = GetProxyGroup(ConfigFilesList);
 
 combineConfig = readConfigFile('subscribe-mojie.conf')
