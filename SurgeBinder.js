@@ -31,6 +31,35 @@ function parseINIString(data) {
     return value;
 }
 
+function jsonToINI(json) {
+    let iniString = ''; // 初始化INI字符串
+
+    // 遍历JSON对象的每个键
+    for (const key in json) {
+        if (json.hasOwnProperty(key)) {
+            const element = json[key];
+
+            // 检查元素是否为对象（即一个section）
+            if (typeof element === 'object' && element !== null && !(element instanceof Array)) {
+                // 对于对象，先添加节名称
+                iniString += `[${key}]\n`;
+
+                // 然后遍历对象的每个键值对并添加到字符串
+                for (const itemKey in element) {
+                    if (element.hasOwnProperty(itemKey)) {
+                        iniString += `${itemKey} = ${element[itemKey]}\n`;
+                    }
+                }
+            } else {
+                // 如果不是对象，直接添加键值对
+                iniString += `${key} = ${element}\n`;
+            }
+        }
+    }
+
+    return iniString;
+}
+
 function readConfigFile(filePath) {
     const data = fs.readFileSync(filePath, 'utf8');
     const config = parseINIString(data);
@@ -79,38 +108,7 @@ function readConfigFilesAndMergeProxies(fileNames) {
     return mergedProxies;
 }
 
-function jsonToINI(json) {
-    let iniString = ''; // 初始化INI字符串
-
-    // 遍历JSON对象的每个键
-    for (const key in json) {
-        if (json.hasOwnProperty(key)) {
-            const element = json[key];
-
-            // 检查元素是否为对象（即一个section）
-            if (typeof element === 'object' && element !== null && !(element instanceof Array)) {
-                // 对于对象，先添加节名称
-                iniString += `[${key}]\n`;
-
-                // 然后遍历对象的每个键值对并添加到字符串
-                for (const itemKey in element) {
-                    if (element.hasOwnProperty(itemKey)) {
-                        iniString += `${itemKey} = ${element[itemKey]}\n`;
-                    }
-                }
-            } else {
-                // 如果不是对象，直接添加键值对
-                iniString += `${key} = ${element}\n`;
-            }
-        }
-    }
-
-    return iniString;
-}
-
-function GetProxyGroup(ConfigFilesList) {
-    const mergedProxies = readConfigFilesAndMergeProxies(ConfigFilesList);
-    // console.log(mergedProxies);
+function GetProxyGroup(ConfigFilesList, mergedProxies) {
     var keys = Object.keys(mergedProxies);
     const ProxiesString = keys.join(', ');
     // console.log(ProxiesString);
@@ -120,10 +118,26 @@ function GetProxyGroup(ConfigFilesList) {
     return [ProxyGroupString, autoGroupString, fallbackGroupString];
 }
 
-const us_string = get_us_string('subscribe-mojie.conf');
+// 修改函数，使其接受一个额外的参数 specificStrings
+function doesNotContainAnySpecific(str, specificStrings) {
+    // 使用some方法检查是否有任何一个特定字符串包含在元素中
+    return !specificStrings.some(specific => str.includes(specific));
+}
+
+function doesNotContainAnySpecific(obj, specificStrings) {
+    Object.keys(obj).forEach(key => {
+        // 检查当前键是否包含数组中的任何一个特定字符串
+        if (specificStrings.some(specificString => key.includes(specificString))) {
+            delete obj[key];  // 如果包含，删除该键
+        }
+    });
+}
+
+// const us_string = get_us_string('subscribe-mojie.conf');
 // console.log(us_string);
 
-ConfigFilesList = ['subscribe1.conf', 'subscribe2.conf'];
+ConfigFilesList = ['subscribe.conf', 'subscribe-mojie.conf'];
+specificStrings = ["剩余流量", "套餐到期", "网站", "有问题切换节点"];
 NewConfigName = "merge.conf"
 
 // console.log(readConfigFile('subscribe-mojie.conf'));
@@ -141,14 +155,8 @@ GPTGroupString = "select, GPTauto, " + all_re_string;
 GPTautoGroupString = "url-test, " + all_re_string + ", url=http://www.gstatic.com/generate_204, interval=43200";
 
 const mergedProxies = readConfigFilesAndMergeProxies(ConfigFilesList);
-// console.log(mergedProxies);
-var keys = Object.keys(mergedProxies);
-const ProxiesString = keys.join(', ');
-// console.log(ProxiesString);
-
-// console.log(keys);
-
-let [ProxyGroupString, autoGroupString, fallbackGroupString] = GetProxyGroup(ConfigFilesList);
+doesNotContainAnySpecific(mergedProxies, specificStrings);
+let [ProxyGroupString, autoGroupString, fallbackGroupString] = GetProxyGroup(ConfigFilesList, mergedProxies);
 
 combineConfig = readConfigFile('subscribe-mojie.conf')
 combineConfig["Proxy Group"].Proxy = ProxyGroupString;
