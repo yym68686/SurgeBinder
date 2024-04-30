@@ -75,14 +75,13 @@ function get_all_re_dict(filePathList, specificStrings, regexrule = null) {
     let all_re_dict = {};
     filePathList.forEach(filePath => {
         const config = readConfigFile(filePath);
-        let filteredProxy;
+        let filteredProxy = {};
         if (regexrule) {
-            filteredProxy = Object.keys(config.Proxy)
-                .filter(key => !regexrule.test(key))  // 过滤掉匹配正则表达式的键
-                .reduce((newObj, key) => {
-                    newObj[key] = config.Proxy[key];  // 将不匹配的键值对添加到新对象中
-                    return newObj;
-                }, {});
+            for (let key in config.Proxy) {
+                if (regexrule.test(key)) {
+                    filteredProxy[key] = config.Proxy[key];
+                }
+            }
         } else {
             filteredProxy = config.Proxy;
         }
@@ -90,7 +89,6 @@ function get_all_re_dict(filePathList, specificStrings, regexrule = null) {
             filteredProxy = filterDictionary(filteredProxy, specificStrings);
             all_re_dict = { ...all_re_dict, ...filteredProxy };
         }
-        // console.log(all_re_dict);
     });
     return all_re_dict;
 }
@@ -112,8 +110,8 @@ function generateConfig(ConfigFilesList, combineConfig, GroupName, AutoGroupName
     var keys = Object.keys(all_re_dict);
     const ProxiesString = keys.join(', ');
     const GroupString = `select, ${AutoGroupName}, ${ProxiesString}`;
-    const AutoGroupString = `url-test, ${ProxiesString}, url=http://www.gstatic.com/generate_204, interval=43200`;
-    // const AutoGroupString = `smart, ${ProxiesString}, url=http://www.gstatic.com/generate_204, interval=43200, include-other-group=`;
+    // const AutoGroupString = `url-test, ${ProxiesString}, url=http://www.gstatic.com/generate_204, interval=43200`;
+    const AutoGroupString = `smart, ${ProxiesString}`;
     combineConfig["Proxy Group"][GroupName] = GroupString;
     combineConfig["Proxy Group"][AutoGroupName] = AutoGroupString;
 }
@@ -121,13 +119,13 @@ function generateConfig(ConfigFilesList, combineConfig, GroupName, AutoGroupName
 ConfigFilesList = ['subscribe.conf', 'subscribe-mojie.conf'];
 specificStrings = ["剩余", "套餐到期", "网站", "有问题切换节点"];
 const NewConfigName = "merge.conf"
-combineConfig = readConfigFile('subscribe-mojie.conf')
 
 let mergedProxies = get_all_re_dict(ConfigFilesList, specificStrings);
 mergedProxies = filterDictionary(mergedProxies, specificStrings);
+
+combineConfig = readConfigFile('subscribe-mojie.conf')
 combineConfig.Proxy = mergedProxies;
 combineConfig["Proxy Group"] = {}
-// console.log(readConfigFile('subscribe-mojie.conf'));
 
 // set Proxy Group
 generateConfig(ConfigFilesList, combineConfig, "Proxy", "auto");
@@ -141,7 +139,6 @@ generateConfig(ConfigFilesList, combineConfig, "GPT", "GPTauto", regexrule);
 let newConfig = {};
 newConfig["Proxy"] = combineConfig["Proxy"];
 newConfig["Proxy Group"] = combineConfig["Proxy Group"];
-// console.log(newConfig);
 data = jsonToINI(newConfig);
 // console.log(data);
 
