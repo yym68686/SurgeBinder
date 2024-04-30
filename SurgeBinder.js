@@ -1,6 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
 function parseINIString(data) {
     const regex = {
         section: /^\s*\[(.*?)\]\s*$/,
@@ -61,113 +58,85 @@ function jsonToINI(json) {
 }
 
 function readConfigFile(filePath) {
-    const data = fs.readFileSync(filePath, 'utf8');
+    let data;
+    try {
+        const fs = require('fs');
+        data = fs.readFileSync(filePath, 'utf8');
+    } catch (err) {
+        console.error(err);
+        data = $persistentStore.read(filePath)
+    }
+    // console.log(data);
     const config = parseINIString(data);
     return config;
 }
 
-function get_us_string(filePath) {
-    // 示例：读取并解析配置文件
-    // const filePath = path.join(__dirname, 'subscribe-mojie.conf');
-    const config = readConfigFile(filePath);
-    // console.log(config.Proxy);
-    // console.log(Object.keys(config.Proxy));
-    let us_list = Object.keys(config.Proxy).filter(item => /美国|US/i.test(item));
-    // let us_list = Object.keys(config.Proxy).filter(item => item.includes("美国"));
-    // console.log(us_list);
-    const us_string = us_list.join(', ');
-    // console.log(us_string);
-    return us_string
-}
-
-function get_all_re_string(filePathList, regexrule) {
-    let all_re_list = [];
+function get_all_re_dict(filePathList, specificStrings, regexrule = null) {
+    let all_re_dict = {};
     filePathList.forEach(filePath => {
         const config = readConfigFile(filePath);
-        let us_list = Object.keys(config.Proxy).filter(item => regexrule.test(item));
-        // console.log(us_list);
-        all_re_list = all_re_list.concat(us_list);
-        // console.log(all_re_list);
-    })
-    return all_re_list.join(', ');
-}
-
-function readConfigFilesAndMergeProxies(fileNames) {
-    let mergedProxies = {};
-
-    // 遍历文件名列表
-    fileNames.forEach(fileName => {
-      // 读取每个文件的配置
-      const configFile = readConfigFile(fileName);
-      // 检查配置文件中是否有Proxy部分，并合并到mergedProxies对象中
-      if (configFile && configFile.Proxy) {
-        mergedProxies = { ...mergedProxies, ...configFile.Proxy };
-      }
+        let filteredProxy;
+        if (regexrule) {
+            filteredProxy = Object.keys(config.Proxy)
+                .filter(key => !regexrule.test(key))  // 过滤掉匹配正则表达式的键
+                .reduce((newObj, key) => {
+                    newObj[key] = config.Proxy[key];  // 将不匹配的键值对添加到新对象中
+                    return newObj;
+                }, {});
+        } else {
+            filteredProxy = config.Proxy;
+        }
+        if (filteredProxy) {
+            filteredProxy = filterDictionary(filteredProxy, specificStrings);
+            all_re_dict = { ...all_re_dict, ...filteredProxy };
+        }
+        // console.log(all_re_dict);
     });
-
-    return mergedProxies;
+    return all_re_dict;
 }
 
-function GetProxyGroup(ConfigFilesList, mergedProxies) {
-    var keys = Object.keys(mergedProxies);
-    const ProxiesString = keys.join(', ');
-    // console.log(ProxiesString);
-    let ProxyGroupString = "select, auto, fallback, " + ProxiesString;
-    let autoGroupString = "url-test, " + ProxiesString + ", url=http://www.gstatic.com/generate_204, interval=43200";
-    let fallbackGroupString = "fallback, " + ProxiesString + ", url=http://www.gstatic.com/generate_204, interval=43200";
-    return [ProxyGroupString, autoGroupString, fallbackGroupString];
-}
-
-// 修改函数，使其接受一个额外的参数 specificStrings
-function doesNotContainAnySpecific(str, specificStrings) {
-    // 使用some方法检查是否有任何一个特定字符串包含在元素中
-    return !specificStrings.some(specific => str.includes(specific));
-}
-
-function doesNotContainAnySpecific(obj, specificStrings) {
-    Object.keys(obj).forEach(key => {
-        // 检查当前键是否包含数组中的任何一个特定字符串
+function filterDictionary(dict, specificStrings) {
+    // 遍历字典的所有键
+    Object.keys(dict).forEach(key => {
+        // 检查当前键是否包含specificStrings数组中的任何一个字符串
         if (specificStrings.some(specificString => key.includes(specificString))) {
-            delete obj[key];  // 如果包含，删除该键
+            // 如果包含，则删除该键
+            delete dict[key];
         }
     });
+    return dict;
 }
 
-// const us_string = get_us_string('subscribe-mojie.conf');
-// console.log(us_string);
+function generateConfig(ConfigFilesList, combineConfig, GroupName, AutoGroupName, regexrule) {
+    const all_re_dict = get_all_re_dict(ConfigFilesList, specificStrings, regexrule);
+    var keys = Object.keys(all_re_dict);
+    const ProxiesString = keys.join(', ');
+    const GroupString = `select, ${AutoGroupName}, ${ProxiesString}`;
+    const AutoGroupString = `url-test, ${ProxiesString}, url=http://www.gstatic.com/generate_204, interval=43200`;
+    // const AutoGroupString = `smart, ${ProxiesString}, url=http://www.gstatic.com/generate_204, interval=43200, include-other-group=`;
+    combineConfig["Proxy Group"][GroupName] = GroupString;
+    combineConfig["Proxy Group"][AutoGroupName] = AutoGroupString;
+}
 
 ConfigFilesList = ['subscribe.conf', 'subscribe-mojie.conf'];
-specificStrings = ["剩余流量", "套餐到期", "网站", "有问题切换节点"];
-NewConfigName = "merge.conf"
+specificStrings = ["剩余", "套餐到期", "网站", "有问题切换节点"];
+const NewConfigName = "merge.conf"
+combineConfig = readConfigFile('subscribe-mojie.conf')
 
+let mergedProxies = get_all_re_dict(ConfigFilesList, specificStrings);
+mergedProxies = filterDictionary(mergedProxies, specificStrings);
+combineConfig.Proxy = mergedProxies;
+combineConfig["Proxy Group"] = {}
 // console.log(readConfigFile('subscribe-mojie.conf'));
 
+// set Proxy Group
+generateConfig(ConfigFilesList, combineConfig, "Proxy", "auto");
+
 regexrule = /美国|US/i;
-all_re_string = get_all_re_string(ConfigFilesList, regexrule);
-// console.log(all_re_string);
-USGroupString = "select, usauto, " + all_re_string;
-usautoGroupString = "url-test, " + all_re_string + ", url=http://www.gstatic.com/generate_204, interval=43200";
+generateConfig(ConfigFilesList, combineConfig, "US", "USauto", regexrule);
 
 regexrule = /GPT/i;
-all_re_string = get_all_re_string(ConfigFilesList, regexrule);
-// console.log(all_re_string);
-GPTGroupString = "select, GPTauto, " + all_re_string;
-GPTautoGroupString = "url-test, " + all_re_string + ", url=http://www.gstatic.com/generate_204, interval=43200";
-
-const mergedProxies = readConfigFilesAndMergeProxies(ConfigFilesList);
-doesNotContainAnySpecific(mergedProxies, specificStrings);
-let [ProxyGroupString, autoGroupString, fallbackGroupString] = GetProxyGroup(ConfigFilesList, mergedProxies);
-
-combineConfig = readConfigFile('subscribe-mojie.conf')
-combineConfig["Proxy Group"].Proxy = ProxyGroupString;
-combineConfig["Proxy Group"].auto = autoGroupString;
-combineConfig["Proxy Group"].fallback = fallbackGroupString;
-combineConfig["Proxy Group"].US = USGroupString;
-combineConfig["Proxy Group"].usauto = usautoGroupString;
-combineConfig["Proxy Group"].GPT = GPTGroupString;
-combineConfig["Proxy Group"].GPTauto = GPTautoGroupString;
-combineConfig.Proxy = mergedProxies;
-// console.log(combineConfig);
+generateConfig(ConfigFilesList, combineConfig, "GPT", "GPTauto", regexrule);
 
 let newConfig = {};
 newConfig["Proxy"] = combineConfig["Proxy"];
@@ -177,10 +146,15 @@ data = jsonToINI(newConfig);
 // console.log(data);
 
 // 使用fs.writeFile方法创建并写入文件
-fs.writeFile(NewConfigName, data, (err) => {
-  if (err) {
-    console.error('写入文件时发生错误:', err);
-  } else {
-    console.log('文件已成功保存。');
-  }
-});
+try{
+    const fs = require('fs');
+    fs.writeFile(NewConfigName, data, (err) => {
+      if (err) {
+        console.error('写入文件时发生错误:', err);
+      } else {
+        console.log('文件已成功保存。');
+      }
+    });
+} catch (err) {
+    $persistentStore.write(data, NewConfigName)
+}
