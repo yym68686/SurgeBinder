@@ -116,30 +116,30 @@ function generateConfig(ConfigFilesList, combineConfig, GroupName, AutoGroupName
     combineConfig["Proxy Group"][AutoGroupName] = AutoGroupString;
 }
 
-ConfigFilesList = ['subscribe.conf', 'subscribe-mojie.conf'];
-specificStrings = ["剩余", "套餐到期", "网站", "有问题切换节点"];
+ConfigFilesList = ['sub.conf', 'subscribe2.conf', 'subscribe.conf'];
+specificStrings = ["剩余", "套餐到期", "网站", "有问题切换节点", "优先使用", "Email", "网址", "更新订阅", "Expire", "DIRECT", "Traffic"];
 const NewConfigName = "merge.conf"
 
 let mergedProxies = get_all_re_dict(ConfigFilesList, specificStrings);
 mergedProxies = filterDictionary(mergedProxies, specificStrings);
 
-combineConfig = readConfigFile('subscribe-mojie.conf')
+let combineConfig = {}
 combineConfig.Proxy = mergedProxies;
 combineConfig["Proxy Group"] = {}
 
 // set Proxy Group
 generateConfig(ConfigFilesList, combineConfig, "Proxy", "auto");
 
-regexrule = /美国|US/i;
+regexrule = /美国|US|United States/i;
 generateConfig(ConfigFilesList, combineConfig, "US", "USauto", regexrule);
 
-regexrule = /GPT/i;
+regexrule = /GPT|Singapore|United States/i;
 generateConfig(ConfigFilesList, combineConfig, "GPT", "GPTauto", regexrule);
 
-let newConfig = {};
-newConfig["Proxy"] = combineConfig["Proxy"];
-newConfig["Proxy Group"] = combineConfig["Proxy Group"];
-data = jsonToINI(newConfig);
+regexrule = /倍率/i;
+generateConfig(ConfigFilesList, combineConfig, "v2spacex", "v2spacexauto", regexrule);
+
+data = jsonToINI(combineConfig);
 // console.log(data);
 
 // 使用fs.writeFile方法创建并写入文件
